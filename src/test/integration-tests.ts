@@ -1,12 +1,17 @@
-import chai from 'chai';
-import chaiAsPromised from 'chai-as-promised';
-import { mock } from 'simple-mock';
-import { parse, GraphQLSchema, GraphQLObjectType, GraphQLString } from 'graphql';
-import { isAsyncIterable } from 'iterall';
-import { subscribe } from 'graphql/subscription';
+import chai from "chai";
+import chaiAsPromised from "chai-as-promised";
+import { mock } from "simple-mock";
+import {
+  parse,
+  GraphQLSchema,
+  GraphQLObjectType,
+  GraphQLString,
+} from "graphql";
+import { isAsyncIterable } from "iterall";
+import { subscribe } from "graphql/subscription";
 
-import { GooglePubSub } from '../index';
-import { withFilter } from 'graphql-subscriptions';
+import { GooglePubSub } from "../index";
+import { withFilter } from "graphql-subscriptions";
 
 chai.use(chaiAsPromised);
 const expect = chai.expect;
@@ -16,33 +21,36 @@ const FIRST_EVENT = process.env.GCP_PUBSUB_INTEGRATION_TEST_TOPIC;
 function buildSchema(iterator) {
   return new GraphQLSchema({
     query: new GraphQLObjectType({
-      name: 'Query',
+      name: "Query",
       fields: {
         testString: {
           type: GraphQLString,
-          resolve: function(_, args) {
-            return 'works';
-          }
-        }
-      }
+          resolve: function (_, args) {
+            return "works";
+          },
+        },
+      },
     }),
     subscription: new GraphQLObjectType({
-      name: 'Subscription',
+      name: "Subscription",
       fields: {
         testSubscription: {
           type: GraphQLString,
-          subscribe: withFilter(() => iterator, () => true),
-          resolve: root => {
-            return 'FIRST_EVENT';
-          }
-        }
-      }
-    })
+          subscribe: withFilter(
+            () => iterator,
+            () => true
+          ),
+          resolve: (root) => {
+            return "FIRST_EVENT";
+          },
+        },
+      },
+    }),
   });
 }
 
-describe('PubSubAsyncIterator', function() {
-  const query = parse(`
+describe("PubSubAsyncIterator", function () {
+  const document = parse(`
     subscription S1 {
       testSubscription
     }
@@ -50,36 +58,35 @@ describe('PubSubAsyncIterator', function() {
 
   const pubsub = new GooglePubSub();
   const origIterator = pubsub.asyncIterator(FIRST_EVENT);
-  const returnSpy = mock(origIterator, 'return');
+  const returnSpy = mock(origIterator, "return");
   const schema = buildSchema(origIterator);
-  const results = subscribe(schema, query);
+  const results = subscribe({ schema, document });
 
-  it('should allow subscriptions', () =>
+  it("should allow subscriptions", () =>
     results
-      .then(async ai => {
-        // tslint:disable-next-line:no-unused-expression
+      .then(async (ai) => {
         expect(isAsyncIterable(ai)).to.be.true;
 
-        const r = ai.next();
+        const r = (ai as AsyncGenerator).next();
         await pubsub.publish(FIRST_EVENT, {});
 
         return r;
       })
-      .then(res => {
-        expect(res.value.data.testSubscription).to.equal('FIRST_EVENT');
+      .then((res) => {
+        expect(res.value.data.testSubscription).to.equal("FIRST_EVENT");
       })).timeout(6000);
 
-  it('should clear event handlers', () =>
+  it("should clear event handlers", () =>
     results
-      .then(ai => {
+      .then((ai) => {
         // tslint:disable-next-line:no-unused-expression
         expect(isAsyncIterable(ai)).to.be.true;
 
         pubsub.publish(FIRST_EVENT, {});
 
-        return ai.return();
+        return (ai as AsyncGenerator).return(null);
       })
-      .then(res => {
+      .then((res) => {
         expect(returnSpy.callCount).to.be.gte(1);
       }));
 });
