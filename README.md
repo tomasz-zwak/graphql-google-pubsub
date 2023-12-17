@@ -1,14 +1,16 @@
 # graphql-google-pubsub
 
+An updated fork of [axelspringer/graphql-google-pubsub](https://github.com/axelspringer/graphql-google-pubsub) repository.
+
 This package implements the PubSubEngine Interface from the [graphql-subscriptions](https://github.com/apollographql/graphql-subscriptions) package and also the new AsyncIterator interface. 
 It allows you to connect your subscriptions manger to a Google PubSub mechanism to support 
 multiple subscription manager instances.
 
 ## Installation
 
-`npm install @axelspringer/graphql-google-pubsub` 
+`npm install @selleo/graphql-google-pubsub` 
 or
-`yarn add @axelspringer/graphql-google-pubsub`
+`yarn add @selleo/graphql-google-pubsub`
    
 ## Using as AsyncIterator
 
@@ -186,8 +188,13 @@ export const resolvers = {
 
 [Jonas Hackenberg - jonas-arkulpa](https://github.com/jonas-arkulpa)
 
+## Updated by
+
+[Tomasz Żwak - tomasz-zwak](https://github.com/tomasz-zwak)
+
 ## Acknowledgements
 
 This project is mostly inspired by [graphql-redis-subscriptions](https://github.com/davidyaha/graphql-redis-subscriptions).
-Many thanks to its authors for their work and inspiration. Thanks to the Lean Team ([Daniel Vogel](https://github.com/herr-vogel), [Martin Thomas](https://github.com/mthomas87), [Marcel Dohnal](https://github.com/mdohnal), [Florian Tatzky](https://github.com/pferdone), [Sebastian Herrlinger](https://github.com/kommander), [Mircea Craculeac](https://github.com/emzaeh) and [Tim Susa](https://github.com/TimSusa)).
+
+Many thanks to its authors for their work and inspiration.
 
