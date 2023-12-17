@@ -3,3 +3,4 @@ node_modules
 dist
 coverage
 npm-debug.log
+dev-service-gcp-acc.json

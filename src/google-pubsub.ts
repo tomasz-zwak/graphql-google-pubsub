@@ -2,6 +2,11 @@ import { ClientConfig, PubSub } from "@google-cloud/pubsub";
 import { PubSubEngine } from "graphql-subscriptions";
 
 import { PubSubAsyncIterator } from "./async-iterator";
+import {
+  CommonMessageHandler,
+  GoogleSubAndClientIds,
+  Topic2SubName,
+} from "./google-pubsub.types";
 
 class NoSubscriptionOfIdError extends Error {
   constructor(subId: number) {
@@ -10,6 +15,19 @@ class NoSubscriptionOfIdError extends Error {
 }
 
 export class GooglePubSub implements PubSubEngine {
+  private commonMessageHandler: CommonMessageHandler;
+  private topic2SubName: Topic2SubName;
+  public pubSubClient: any;
+  // [subName: string, onMessage: Function]
+  private clientId2GoogleSubNameAndClientCallback: {
+    [clientId: number]: [string, Function];
+  };
+  private googleSubName2GoogleSubAndClientIds: {
+    [topic: string]: GoogleSubAndClientIds;
+  };
+
+  private currentClientId: number;
+
   constructor(
     config?: ClientConfig,
     topic2SubName: Topic2SubName = (topicName) => `${topicName}-subscription`,
@@ -30,9 +48,10 @@ export class GooglePubSub implements PubSubEngine {
     if (typeof data !== "string") {
       _data = JSON.stringify(data);
     }
-    return this.pubSubClient
-      .topic(topicName)
-      .publish(Buffer.from(_data), attributes);
+
+    const topic = this.pubSubClient.topic(topicName);
+
+    return topic.publish(Buffer.from(_data), attributes);
   }
 
   private async getSubscription(topicName: any, subName: any, options?: any) {
@@ -137,35 +156,4 @@ export class GooglePubSub implements PubSubEngine {
   ): AsyncIterator<T> {
     return new PubSubAsyncIterator(this, topics, options);
   }
-
-  private commonMessageHandler: CommonMessageHandler;
-
-  private topic2SubName: Topic2SubName;
-
-  public pubSubClient: any;
-
-  // [subName: string, onMessage: Function]
-  private clientId2GoogleSubNameAndClientCallback: {
-    [clientId: number]: [string, Function];
-  };
-
-  private googleSubName2GoogleSubAndClientIds: {
-    [topic: string]: GoogleSubAndClientIds;
-  };
-
-  private currentClientId: number;
 }
-
-type GoogleSubAndClientIds = {
-  sub?: any; //
-  messageHandler?: Function;
-  errorHandler?: Function;
-  ids?: Array<number>;
-};
-
-export type Topic2SubName = (
-  topic: string,
-  subscriptionOptions?: Object
-) => string;
-
-export type CommonMessageHandler = (message: any) => any;

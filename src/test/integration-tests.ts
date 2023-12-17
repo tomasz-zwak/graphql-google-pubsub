@@ -16,6 +16,8 @@ import { withFilter } from "graphql-subscriptions";
 chai.use(chaiAsPromised);
 const expect = chai.expect;
 
+require("dotenv").config();
+
 const FIRST_EVENT = process.env.GCP_PUBSUB_INTEGRATION_TEST_TOPIC;
 
 function buildSchema(iterator) {
@@ -58,23 +60,27 @@ describe("PubSubAsyncIterator", function () {
 
   const pubsub = new GooglePubSub();
   const origIterator = pubsub.asyncIterator(FIRST_EVENT);
+
   const returnSpy = mock(origIterator, "return");
   const schema = buildSchema(origIterator);
   const results = subscribe({ schema, document });
 
-  it("should allow subscriptions", () =>
+  it("should allow subscriptions", (done) => {
     results
       .then(async (ai) => {
         expect(isAsyncIterable(ai)).to.be.true;
 
         const r = (ai as AsyncGenerator).next();
+
         await pubsub.publish(FIRST_EVENT, {});
 
         return r;
       })
       .then((res) => {
         expect(res.value.data.testSubscription).to.equal("FIRST_EVENT");
-      })).timeout(6000);
+        done();
+      });
+  }).timeout(1000 * 10);
 
   it("should clear event handlers", () =>
     results
