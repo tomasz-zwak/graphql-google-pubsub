@@ -16,6 +16,7 @@ import { withFilter } from "graphql-subscriptions";
 chai.use(chaiAsPromised);
 const expect = chai.expect;
 
+// tslint:disable-next-line:no-var-requires
 require("dotenv").config();
 
 const FIRST_EVENT = process.env.GCP_PUBSUB_INTEGRATION_TEST_TOPIC;
@@ -68,6 +69,7 @@ describe("PubSubAsyncIterator", function () {
   it("should allow subscriptions", (done) => {
     results
       .then(async (ai) => {
+        // tslint:disable-next-line:no-unused-expression
         expect(isAsyncIterable(ai)).to.be.true;
 
         const r = (ai as AsyncGenerator).next();
