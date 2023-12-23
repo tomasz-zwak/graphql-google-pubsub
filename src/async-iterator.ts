@@ -1,118 +1,89 @@
 import { PubSubEngine } from "graphql-subscriptions";
-import { $$asyncIterator } from "iterall";
 
 /**
  * A class for digesting PubSubEngine events via the new AsyncIterator interface.
- * This implementation is a generic version of the AsyncIterator, so any PubSubEngine may
- * be used.
+ * This implementation is a generic version of the one located at
+ * https://github.com/apollographql/graphql-subscriptions/blob/master/src/event-emitter-to-async-iterator.ts
  * @class
  *
  * @constructor
  *
  * @property pullQueue @type {Function[]}
  * A queue of resolve functions waiting for an incoming event which has not yet arrived.
- * This queue expands as next() calls are made without PubSubEngine events occurring in-between.
+ * This queue expands as next() calls are made without PubSubEngine events occurring in between.
  *
- * @property pushQueue @type {T[]}
- * A queue of PubSubEngine events waiting for next() calls to be made, which returns the queued events
- * for handling. This queue expands as PubSubEngine events arrive without next() calls occurring in-between.
+ * @property pushQueue @type {any[]}
+ * A queue of PubSubEngine events waiting for next() calls to be made.
+ * This queue expands as PubSubEngine events arrice without next() calls occurring in between.
  *
  * @property eventsArray @type {string[]}
- * An array of PubSubEngine event names that this PubSubAsyncIterator should watch.
+ * An array of PubSubEngine event names which this PubSubAsyncIterator should watch.
  *
  * @property allSubscribed @type {Promise<number[]>}
- * undefined until next() called for the first time, afterwards is a promise of an array of all
- * subscription ids, where each subscription id identified a subscription on the PubSubEngine.
- * The undefined initialization ensures that subscriptions are not made to the PubSubEngine
- * before next() has ever been called.
+ * A promise of a list of all subscription ids to the passed PubSubEngine.
  *
- * @property running @type {boolean}
- * Whether or not the PubSubAsyncIterator is in running mode (responding to incoming PubSubEngine events and next() calls).
- * running begins as true and turns to false once the return method is called.
+ * @property listening @type {boolean}
+ * Whether or not the PubSubAsynIterator is in listening mode (responding to incoming PubSubEngine events and next() calls).
+ * Listening begins as true and turns to false once the return method is called.
  *
  * @property pubsub @type {PubSubEngine}
  * The PubSubEngine whose events will be observed.
- *
- * @property options @type {any}
- * Additional options which get passed through for the client.
  */
-
-export class PubSubAsyncIterator<T> implements AsyncIterator<T> {
-  private pullQueue: ((value: IteratorResult<T>) => void)[];
-
-  private pushQueue: T[];
-
+export class PubSubAsyncIterator<T> implements AsyncIterableIterator<T> {
+  private pullQueue: Array<(data: { value: unknown; done: boolean }) => void>;
+  private pushQueue: any[];
   private eventsArray: string[];
-
-  private allSubscribed: number[] | null;
-
-  private running: boolean;
-
+  private subscriptionIds: Promise<number[]> | undefined;
+  private listening: boolean;
   private pubsub: PubSubEngine;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private options: any;
+  private options: unknown;
 
   constructor(
     pubsub: PubSubEngine,
     eventNames: string | string[],
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    options: any
+    options?: unknown
   ) {
     this.pubsub = pubsub;
+    this.options = options;
     this.pullQueue = [];
     this.pushQueue = [];
-    this.running = true;
-    this.allSubscribed = null;
+    this.listening = true;
     this.eventsArray =
       typeof eventNames === "string" ? [eventNames] : eventNames;
-    this.options = options;
   }
 
-  public async next(): Promise<IteratorResult<T>> {
-    if (this.allSubscribed === null) {
-      this.allSubscribed = await this.subscribeAll();
-    }
-    return this.pullValue();
+  public async next() {
+    await this.subscribeAll();
+    return this.listening ? this.pullValue() : this.return();
   }
 
-  public async return(): Promise<IteratorResult<T>> {
+  public async return(): Promise<{ value: unknown; done: true }> {
     await this.emptyQueue();
     return { value: undefined, done: true };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public async throw(error: any) {
+  public async throw(error): Promise<never> {
     await this.emptyQueue();
     return Promise.reject(error);
   }
 
-  public [$$asyncIterator]() {
+  public [Symbol.asyncIterator]() {
     return this;
   }
 
-  private async pushValue(event: T) {
+  private async pushValue(event) {
+    await this.subscribeAll();
     if (this.pullQueue.length !== 0) {
-      this.pullQueue.shift()?.(
-        this.running
-          ? { value: event, done: false }
-          : { value: undefined, done: true }
-      );
+      this.pullQueue.shift()({ value: event, done: false });
     } else {
       this.pushQueue.push(event);
     }
   }
 
-  private pullValue(): Promise<IteratorResult<T>> {
+  private pullValue(): Promise<IteratorResult<any>> {
     return new Promise((resolve) => {
       if (this.pushQueue.length !== 0) {
-        const value = this.pushQueue.shift();
-
-        resolve(
-          this.running && value
-            ? { value, done: false }
-            : { value: undefined, done: true }
-        );
+        resolve({ value: this.pushQueue.shift(), done: false });
       } else {
         this.pullQueue.push(resolve);
       }
@@ -120,30 +91,30 @@ export class PubSubAsyncIterator<T> implements AsyncIterator<T> {
   }
 
   private async emptyQueue() {
-    if (this.running) {
-      this.running = false;
+    if (this.listening) {
+      this.listening = false;
+      if (this.subscriptionIds) this.unsubscribeAll(await this.subscriptionIds);
       this.pullQueue.forEach((resolve) =>
         resolve({ value: undefined, done: true })
       );
       this.pullQueue.length = 0;
       this.pushQueue.length = 0;
-      const subscriptionIds = this.allSubscribed;
-      if (subscriptionIds) {
-        this.unsubscribeAll(subscriptionIds);
-      }
     }
   }
 
   private subscribeAll() {
-    return Promise.all(
-      this.eventsArray.map((eventName) =>
-        this.pubsub.subscribe(
-          eventName,
-          this.pushValue.bind(this),
-          this.options
+    if (!this.subscriptionIds) {
+      this.subscriptionIds = Promise.all(
+        this.eventsArray.map((eventName) =>
+          this.pubsub.subscribe(
+            eventName,
+            this.pushValue.bind(this),
+            this.options
+          )
         )
-      )
-    );
+      );
+    }
+    return this.subscriptionIds;
   }
 
   private unsubscribeAll(subscriptionIds: number[]) {
