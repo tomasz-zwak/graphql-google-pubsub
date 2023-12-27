@@ -8,9 +8,9 @@ multiple subscription manager instances.
 
 ## Installation
 
-`npm install @selleo/graphql-google-pubsub` 
+`npm install @zwaq/graphql-google-pubsub` 
 or
-`yarn add @selleo/graphql-google-pubsub`
+`yarn add @zwaq/graphql-google-pubsub`
    
 ## Using as AsyncIterator
 
