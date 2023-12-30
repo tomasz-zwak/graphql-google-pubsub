@@ -3,7 +3,12 @@ import chaiAsPromised from "chai-as-promised";
 import { spy, mock, restore } from "simple-mock";
 import { isAsyncIterable } from "iterall";
 import { GooglePubSub } from "../index";
-import { ExistsResponse, PubSub, Subscription } from "@google-cloud/pubsub";
+import {
+  CreateSubscriptionOptions,
+  ExistsResponse,
+  PubSub,
+  Subscription,
+} from "@google-cloud/pubsub";
 
 chai.use(chaiAsPromised);
 const expect = chai.expect;
@@ -42,7 +47,7 @@ function getMockedGooglePubSub({
   };
 
   const topicMock = {
-    publish: spy((data, attributes) =>
+    publishMessage: spy(({ data, attributes }) =>
       listener?.({ ack: ackSpy, data, attributes })
     ),
     createSubscription: spy((subName, {}) =>
@@ -332,7 +337,7 @@ describe("GooglePubSub", () => {
     pubSub
       .subscribe("comments", validateMessage, {
         subscriptionSufix: "graphql-google-pubsub-subscription",
-      })
+      } as CreateSubscriptionOptions)
       .then(async (subId) => {
         pubSub.publish("comments", "test");
         await asyncMessageHandler();

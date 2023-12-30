@@ -93,7 +93,11 @@ export class PubSubAsyncIterator<T> implements AsyncIterableIterator<T> {
   private async emptyQueue() {
     if (this.listening) {
       this.listening = false;
-      if (this.subscriptionIds) this.unsubscribeAll(await this.subscriptionIds);
+
+      if (this.subscriptionIds !== undefined) {
+        this.unsubscribeAll(await this.subscriptionIds);
+      }
+
       this.pullQueue.forEach((resolve) =>
         resolve({ value: undefined, done: true })
       );
@@ -103,7 +107,7 @@ export class PubSubAsyncIterator<T> implements AsyncIterableIterator<T> {
   }
 
   private subscribeAll() {
-    if (!this.subscriptionIds) {
+    if (this.subscriptionIds === undefined) {
       this.subscriptionIds = Promise.all(
         this.eventsArray.map((eventName) =>
           this.pubsub.subscribe(

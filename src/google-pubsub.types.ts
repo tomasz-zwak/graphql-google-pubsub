@@ -1,7 +1,9 @@
+import { Message, Subscription } from "@google-cloud/pubsub";
+
 export type GoogleSubAndClientIds = {
-  sub?: any; //
-  messageHandler?: Function;
-  errorHandler?: Function;
+  sub?: Subscription;
+  messageHandler?: (message: Message) => void;
+  errorHandler?: CommonErrorHandler;
   ids?: Array<number>;
 };
 
@@ -10,4 +12,6 @@ export type Topic2SubName = (
   subscriptionOptions?: Object
 ) => string;
 
-export type CommonMessageHandler = (message: any) => any;
+export type CommonMessageHandler = (message: Message) => Message;
+
+export type CommonErrorHandler = (...args: any[]) => void;

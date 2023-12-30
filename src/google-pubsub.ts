@@ -1,8 +1,15 @@
-import { ClientConfig, PubSub } from "@google-cloud/pubsub";
+import {
+  Attributes,
+  ClientConfig,
+  CreateSubscriptionOptions,
+  Message,
+  PubSub,
+} from "@google-cloud/pubsub";
 import { PubSubEngine } from "graphql-subscriptions";
 
 import { PubSubAsyncIterator } from "./async-iterator";
 import {
+  CommonErrorHandler,
   CommonMessageHandler,
   GoogleSubAndClientIds,
   Topic2SubName,
@@ -17,8 +24,8 @@ class NoSubscriptionOfIdError extends Error {
 export class GooglePubSub implements PubSubEngine {
   private commonMessageHandler: CommonMessageHandler;
   private topic2SubName: Topic2SubName;
-  public pubSubClient: any;
-  // [subName: string, onMessage: Function]
+  public pubSubClient: PubSub;
+
   private clientId2GoogleSubNameAndClientCallback: {
     [clientId: number]: [string, Function];
   };
@@ -42,7 +49,7 @@ export class GooglePubSub implements PubSubEngine {
     this.commonMessageHandler = commonMessageHandler;
   }
 
-  public publish(topicName: string, data: any, attributes?: object) {
+  async publish(topicName: string, data: any, attributes?: Attributes) {
     let _data = data;
 
     if (typeof data !== "string") {
@@ -51,10 +58,14 @@ export class GooglePubSub implements PubSubEngine {
 
     const topic = this.pubSubClient.topic(topicName);
 
-    return topic.publish(Buffer.from(_data), attributes);
+    await topic.publishMessage({ data: Buffer.from(_data), attributes });
   }
 
-  private async getSubscription(topicName: any, subName: any, options?: any) {
+  private async getSubscription(
+    topicName: string,
+    subName: string,
+    options?: CreateSubscriptionOptions
+  ) {
     const sub = this.pubSubClient.subscription(subName);
     const [exists] = await sub.exists();
     if (exists) {
@@ -68,22 +79,22 @@ export class GooglePubSub implements PubSubEngine {
   }
 
   private getMessageHandler(subName: string) {
-    return async (message: any) => {
-      message.ack();
-      const res = await this.commonMessageHandler(message);
+    return (message: Message) => {
+      const res = this.commonMessageHandler(message);
       const { ids = [] } =
         this.googleSubName2GoogleSubAndClientIds[subName] || {};
       ids.forEach((id: number) => {
         const [, onMessage] = this.clientId2GoogleSubNameAndClientCallback[id];
         onMessage(res);
       });
+      message.ack();
     };
   }
 
   async subscribe(
     topicName: string,
     onMessage: (...args: any[]) => void,
-    options?: object
+    options?: CreateSubscriptionOptions
   ): Promise<number> {
     const subName = this.topic2SubName(topicName, options);
     const id = this.currentClientId++;
@@ -103,7 +114,9 @@ export class GooglePubSub implements PubSubEngine {
     if (!googleSubAndClientIds.ids?.length) return id;
     const messageHandler = this.getMessageHandler(subName);
     // eslint-disable-next-line no-console
-    const errorHandler = (error: unknown) => console.error(error);
+    const errorHandler: CommonErrorHandler = (error: unknown) =>
+      console.error(error);
+
     sub.on("message", messageHandler);
     sub.on("error", errorHandler);
 
@@ -134,7 +147,7 @@ export class GooglePubSub implements PubSubEngine {
         sub.removeListener("message", messageHandler);
         sub.removeListener("error", errorHandler);
       }
-      // sub.delete()
+
       delete this.googleSubName2GoogleSubAndClientIds[subName];
     } else {
       const index = ids.indexOf(subId);
@@ -151,7 +164,6 @@ export class GooglePubSub implements PubSubEngine {
 
   public asyncIterator<T>(
     topics: string | string[],
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     options?: any
   ): AsyncIterator<T> {
     return new PubSubAsyncIterator(this, topics, options);
